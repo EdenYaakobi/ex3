@@ -1,0 +1,265 @@
+---
+title: "Eden - EX3"
+output: html_document
+---
+
+# 1a. 
+define root directiry and add library
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE,warning = TRUE, root.dir='C:/Users/User/Desktop/EX3')
+#install.packages("igraph")
+#install.packages("digest")
+#install.packages("rgl")
+library(igraph)
+#library(digest)
+#library(rgl)
+```
+
+Next, I will explore the data firther. In order to do so, let's represent the data as a graph.
+edges - ga.data
+verices -  ge.data.vertices
+
+```{r}
+ga.data <- read.csv('C:/Users/User/Desktop/EX3/ga_edgelist.csv', header=T, stringsAsFactors=F)
+ga.data.vertices <- read.csv('C:/Users/User/Desktop/EX3/ga_actors.csv', header=T, stringsAsFactors=F)
+g <- graph.data.frame(ga.data, vertices=ga.data.vertices, directed=F)
+#let's explore it a bit
+g
+```
+
+We can see that there are 34 edges and 32 vertices on an undirected graph.
+Let's use 'V(g)$gender' attribute to color the nodes by gender:
+
+```{r}
+
+V(g)$size <- 7 # Set size to all nodes
+V(g)$color <- "powderblue"
+females <- which(V(g)$gender == "F")
+V(g)$color[females] <- "pink" 
+plot(g)
+
+```
+
+## betweeness
+For every pair of vertices in a connected graph, there exists at least one shortest path between the vertices such that either the number of edges that the path passes through (for unweighted graphs) or the sum of the weights of the edges (for weighted graphs) is minimized. The betweenness centrality for each vertex is the number of these shortest paths that pass through the vertex. 
+### highest - sloan = 115.36667
+
+```{r}
+betweenness <- betweenness(g)
+betweenness <- sort(betweenness, decreasing = TRUE)
+betweenness
+
+```
+
+
+## Closeness
+Closeness is based on the length of the average shortest path between a node and all other nodes in the network.
+### highest - torres = 0.00319488
+
+```{r}
+closeness <- closeness(g, mode="all")
+closeness <- sort(closeness, decreasing = TRUE)
+closeness
+```
+
+
+## Eigenvector 
+How central you are depends on how central your neighbors are.
+### highest - kerev = 1
+```{r}
+Eigenvector <- eigen_centrality(g, directed = TRUE, scale = TRUE)
+Eigenvector <- sort(Eigenvector$vector, decreasing = TRUE)
+Eigenvector
+```
+
+# 1b. 
+
+## Girvan-Newman - edge betweeness community Clustering
+we got 7 groups 
+```{r}
+gnc <-  edge.betweenness.community(g, directed = FALSE)
+gnc_plot <- membership(gnc)
+gnc
+plot(g, vertex.size=7, vertex.color=gnc_plot, asp=FALSE)
+```
+
+To get the size of each group, we will do:
+8,5,5,4,3,3,4
+```{r}
+sizes(gnc)
+```
+
+### Modularity Score 
+= 0.5774221
+```{r}
+max(gnc$modularity)
+```
+
+## Louvain Clustering
+We got 6 groups 
+```{r}
+lo <- cluster_louvain(g)
+lo_plot <-membership(lo)
+lo
+plot(g,vertex.size=7 , vertex.color=lo_plot , asp=FALSE)
+```
+
+To get the size of each group, we will do:
+3,5,4,5,10,5
+```{r}
+sizes(lo)
+```
+
+### Modularity Score 
+= 0.5947232
+```{r}
+max(lo$modularity)
+```
+
+
+
+# 2a.
+
+## Facebook 
+Setting credentials. I chose the Facebook page of Jerusalem and took 30 posts up until 22th of may. 
+
+
+
+```{r}
+#install.packages("devtools")
+library(devtools)
+#install_github("Rfacebook", "pablobarbera", subdir="Rfacebook")
+require (Rfacebook)
+
+token <- "EAACEdEose0cBAPbmwrR0YbuzhxrL7JMmSgcabe9s4v0zgzdz3TGyVUkvZACZCOjmr4qeUqZAFZCWbVrWkMRPUcL2vaSHrztiBCuJsdvOVmKeHpjNWv23ThrNnCAIZBvOb3QSyzKqC65f6hRc8RXgmKkWdht36ZCwEhAWedGHPkZCjcJyzX4NnIdVKEDJOmbYE4ZD"
+
+fb_page <- getPage('TheJerusalemPost', token, n = 30, since = NULL, until =  "2017-05-22", feed = TRUE,  reactions = FALSE)
+fb_page 
+
+```
+
+Let's keep the messages and take a look at them
+```{r}
+#install.packages(tm)
+#install.packages(httr)
+#install.packages("slam")
+library(tm)
+library(httr)
+
+data_posts <- Corpus(VectorSource(fb_page$message))
+data_posts
+
+```
+
+Let's clean and clear the messages a bit and perform better our data as a matrix 
+
+```{r}
+term_matrix <- TermDocumentMatrix(data_posts, control = list(removeNumbers=TRUE, removePunctuation=TRUE,stopwords=TRUE,tolower = FALSE)) 
+term_matrix
+term_matrix <- as.matrix(term_matrix)
+term_matrix[0:15,]
+``` 
+
+Now, let's create the graph 
+
+```{r}
+#install.packages("igraph")
+library(igraph)
+
+
+net <- graph.incidence(term_matrix)
+proj_net <- bipartite.projection(net)
+net <- proj_net$proj1
+#set.seed(3952)
+plot(net)
+``` 
+
+and beautify it  a bit 
+
+```{r}
+degree_s<-degree(net)
+V(net)$label <- V(net)$name
+V(net)$size = degree(net)
+V(net)$size <- degree_s * 0.2
+V(net)$label.cex<-  2 * V(net)$size / max(V(net)$size) +.2
+plot(net)
+``` 
+
+
+```{r}
+
+#install.packages('wordcloud')
+#install.packages(' RColorBrewer')
+library(wordcloud)
+library(RColorBrewer)
+#Layout<-layout_with_kk(net)
+#Layout<-layout_with_lgl(net)
+#Layout<-layout_nicely(net)
+plot(net, asp=FALSE)
+summary(net)
+#tkplot(net, layout=Layout)
+``` 
+
+## Now, I will answer question 1 a again and will find Bteweennes, Closeness and Eigenvector
+
+### Betweeness, Trump =  6.138410e+03
+
+```{r}
+betweenness<-betweenness(net)
+betweenness = sort(betweenness, decreasing = TRUE)
+betweenness
+``` 
+### Closness , Israel = 1.186662e-04
+```{r}
+closeness<-closeness(net)
+closeness = sort(closeness, decreasing = TRUE)
+closeness
+``` 
+### Eigenvector , Trump=1
+```{r}
+Eigenvector <- eigen_centrality(net, directed = TRUE, scale = TRUE)
+Eigenvector <- sort(Eigenvector$vector, decreasing = TRUE)
+Eigenvector
+```
+
+# 1 b 
+
+## Community detection 
+### Girvan-Newman- there are 15 groups
+
+```{r}
+net_new <- proj_net$proj1
+net_new
+```
+
+```{r}
+gnc_net <-  edge.betweenness.community(net_new, directed = FALSE)
+gnc_net_plot <- membership(gnc_net)
+gnc_net
+plot(net_new, vertex.size=7, vertex.color=gnc_net_plot, asp=FALSE)
+```
+
+## size = 24 22 20 10 21  9 10 30  5  6  7 19  8 12 16  
+### modularity= 0.7144406
+```{r}
+sizes(gnc_net)
+max(gnc_net$modularity)
+```
+
+
+## Louvain Clustering - We've got 16 groups 
+```{r}
+lo_net <- cluster_louvain(net_new)
+lo_net_plot <-membership(lo_net)
+lo_net
+plot(net_new,vertex.size=7 , vertex.color=lo_net_plot , asp=FALSE)
+```
+
+## size = 10 28 11 33  8 19 15 27 27 10 23  8 
+### modularity= 0.7218966
+```{r}
+sizes(lo_net)
+max(lo_net$modularity)
+```
+
